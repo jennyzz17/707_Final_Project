@@ -21,7 +21,7 @@ cigarettes containing minimally or non-addictive levels of nicotine.
 
 ### Problem Description
 
-**Primary Hypothesis**:Less amount of nicotine in cigarettes can help
+**Primary Hypothesis**: Less amount of nicotine in cigarettes can help
 reduce patients’ dependence on smoking. 
 
 ### Data Description
