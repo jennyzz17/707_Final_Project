@@ -1,0 +1,221 @@
+---
+title: "707_Classification"
+author: "Yili Lin"
+date: "11/6/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(caTools) #sample.split()
+library(caret) # creatFolds()
+library(randomForest)
+library(e1071)
+library(gbm)
+library(stats)
+library(pROC)
+```
+
+For classification problem, we need to categorize the outcome into binary variable. Create a new variable, *Smoke_Dependence_new*, when *Smoking_Dependence_Dif* >= 0, assign 0, else assign 1.
+```{r}
+# Change the outcome variable into categorical variable
+data <- read.csv("C:/lucy/Duke/Biostats-707/Final Project/707_Project_EDA.csv")
+data <- data[,5:29]
+data$Smoke_Dependence_new <- ifelse(data$Smoke_Dependence_Dif>=0, 0, 1)  
+```
+
+Split the dataset into 80\% training dataset and 20\% test dataset.
+```{r}
+set.seed(2021)
+Y <-  data$Smoke_Dependence_new
+data$split = sample.split(Y, SplitRatio = 0.8)
+train <- data %>% 
+  filter(split == TRUE) %>% 
+  select(-split)
+
+test <- data %>% 
+  filter(split == FALSE) %>% 
+  select(-split)
+```
+
+Create 5 fold for training dataset
+```{r}
+set.seed(2021)
+idx <- createFolds(train$Smoke_Dependence_new, k = 5)
+sapply(idx, length)
+```
+
+```{r}
+list1 <- idx$Fold1
+list2 <- idx$Fold2
+list3 <- idx$Fold3
+list4 <- idx$Fold4
+list5 <- idx$Fold5
+Fold1 <- train[list1,]
+Fold2 <- train[list2,]
+Fold3 <- train[list3,]
+Fold4 <- train[list4,]
+Fold5 <- train[list5,]
+Fold1$Fold <- 'Fold1'
+Fold2$Fold <- 'Fold2'
+Fold3$Fold <- 'Fold3'
+Fold4$Fold <- 'Fold4'
+Fold5$Fold <- 'Fold5'
+train_new <- rbind(Fold1,Fold2,Fold3,Fold4,Fold5)
+write.csv(train_new,'707_FP_Train.csv')
+write.csv(test,'707_FP_Test.csv')
+```
+
+Factorize some variables
+```{r}
+train_new$Gender = as.factor(train_new$Gender)
+train_new$Race =as.factor(train_new$Race)
+train_new$Marital_Status = as.factor(train_new$Marital_Status)
+train_new$Living_Situation = as.factor(train_new$Living_Situation)
+train_new$Education_Level = as.factor(train_new$Education_Level)
+train_new$Student_Status = as.factor(train_new$Student_Status)
+train_new$Employ_Status = as.factor(train_new$Employ_Status)
+train_new$Menthol = as.factor(train_new$Menthol)
+train_new$Treatment = as.factor(train_new$Treatment)
+train_new <- train_new[,2:27]
+```
+
+The first method is logistic regression
+```{r}
+# Logisitic Regression
+lr_cv <- function(fold_name){
+  train_new$Smoke_Dependence_new <- as.factor(train_new$Smoke_Dependence_new)
+  lr_train <- train_new[train_new$Fold != fold_name,]
+  lr_validate <- train_new[train_new$Fold == fold_name,]
+  lr_train = lr_train[,1:25]
+  lr_validate = lr_validate[,1:25]
+  lr.out <- glm(Smoke_Dependence_new ~., data = lr_train, family    = binomial)
+  p <- predict(lr.out,newdata = lr_validate[,1:24],type = 'response')
+  pred <- as.numeric(p>0.5)
+  tab <-  table(lr_validate$Smoke_Dependence_new,pred)
+  acc <- (tab[1]+tab[4])/nrow(lr_validate)
+  precision <- (tab[4])/(tab[3]+tab[4])
+  recall <- tab[4]/(tab[2] + tab[4])
+  F1 <- 2 * precision * recall /(precision + recall)
+  return (c(acc, F1))
+}
+
+```
+
+```{r}
+lr.acc1 <- lr_cv('Fold1')
+lr.acc2 <- lr_cv('Fold2')
+lr.acc3 <- lr_cv('Fold3')
+lr.acc4 <- lr_cv('Fold4')
+lr.acc5 <- lr_cv('Fold5')
+lr.acc = (lr.acc1+ lr.acc2 + lr.acc3 + lr.acc4 +lr.acc5)/5
+lr.acc
+```
+The accuracy for the logistic regression is `r lr.acc`
+
+The second method is Random Forest
+```{r}
+# Random Forest 
+rf_cv <- function(fold_name){
+  train_new$Smoke_Dependence_new <- as.factor(train_new$Smoke_Dependence_new)
+  rf_train <- train_new[train_new$Fold != fold_name,]
+  rf_validate <- train_new[train_new$Fold == fold_name,]
+  rf_train = rf_train[,1:25]
+  rf_validate = rf_validate[,1:25]
+  rf.out <- randomForest(Smoke_Dependence_new ~., data =rf_train, mtry=5,ntree = 600)
+  p <- predict(rf.out,newdata = rf_validate[,1:24])
+  tab <-  table(rf_validate$Smoke_Dependence_new,p)
+  acc <- (tab[1]+tab[4])/nrow(rf_validate)
+  precision <- (tab[4])/(tab[3]+tab[4])
+  recall <- tab[4]/(tab[2] + tab[4])
+  F1 <- 2 * precision * recall /(precision + recall)
+  return (c(acc, F1))
+  
+}
+```
+
+```{r}
+rf.acc1 <- rf_cv('Fold1')
+rf.acc2 <- rf_cv('Fold2')
+rf.acc4 <- rf_cv('Fold4')
+rf.acc3 <- rf_cv('Fold3')
+rf.acc5 <- rf_cv('Fold5')
+rf.acc = (rf.acc1+ rf.acc2 + rf.acc3 + rf.acc4 +rf.acc5)/5
+rf.acc
+```
+The accuracy for the random forest is `r rf.acc`
+
+The third method is GBDT
+```{r}
+# gbdt
+gbdt_cv <- function(fold_name){
+  train_new$Smoke_Dependence_new <- as.factor(train_new$Smoke_Dependence_new)
+  gbdt_train <- train_new[train_new$Fold != fold_name,]
+  gbdt_validate <- train_new[train_new$Fold == fold_name,]
+  gbdt_train = gbdt_train[,1:25]
+  gbdt_validate = gbdt_validate[,1:25]
+  gbdt.out <- gbm(Smoke_Dependence_new ~., data =gbdt_train,distribution = 'gaussian')
+  best.iter <- gbm.perf(gbdt.out)
+  p <- predict(gbdt.out,newdata = gbdt_validate[,1:24],best.iter)
+  gbdt.roc = roc(gbdt_validate$Smoke_Dependence_new,p)
+  gbdt.predict.class = ifelse(p >  coords(gbdt.roc,"best")["threshold"][1,1],1,0)
+  tab <-  table(gbdt_validate$Smoke_Dependence_new,gbdt.predict.class)
+  acc <- (tab[1]+tab[4])/nrow(gbdt_validate)
+  
+  return(acc)
+}
+```
+
+```{r}
+gbdt.acc1 <- gbdt_cv('Fold1')
+gbdt.acc2 <- gbdt_cv('Fold2')
+gbdt.acc4 <- gbdt_cv('Fold4')
+gbdt.acc3 <- gbdt_cv('Fold3')
+gbdt.acc5 <- gbdt_cv('Fold5')
+gbdt.acc = (gbdt.acc1+ gbdt.acc2 + gbdt.acc3 + gbdt.acc4 +gbdt.acc5)/5
+gbdt.acc
+```
+
+The accuracy for SVM is `r svm.acc`
+
+The model that has the largest accuracy rate is Random Forest. 
+```{r}
+test$Gender = as.factor(test$Gender)
+test$Race =as.factor(test$Race)
+test$Marital_Status = as.factor(test$Marital_Status)
+test$Living_Situation = as.factor(test$Living_Situation)
+test$Education_Level = as.factor(test$Education_Level)
+test$Student_Status = as.factor(test$Student_Status)
+test$Employ_Status = as.factor(test$Employ_Status)
+test$Menthol = as.factor(test$Menthol)
+test$Treatment = as.factor(test$Treatment)
+```
+
+```{r}
+lr_out <- glm(Smoke_Dependence_new ~., data = train_new[,1:25], family    = binomial)
+summary(lr_out)
+```
+
+```{r}
+train_new$Smoke_Dependence_new <- as.factor(train_new$Smoke_Dependence_new)
+rf_out <- randomForest(Smoke_Dependence_new ~., data =train_new[,1:25],mtry = 5)
+rf_predict <- predict(rf_out, newdata = test[,2:25])
+rf_tab <- table(test$Smoke_Dependence_new,rf_predict)
+rf.test.acc <- (rf_tab[1] + rf_tab[4])/nrow(test)
+rf.precision <- (rf_tab[4])/(rf_tab[3]+rf_tab[4])
+rf.recall <- rf_tab[4]/(rf_tab[2] + rf_tab[4])
+rf.F1 <- 2 * rf.precision * rf.recall /(rf.precision + rf.recall)
+importance_tab <- data.frame(rf_out$importance)
+importance_tab <- data.frame(names = row.names(importance_tab), importance_tab)
+plot(rf_out$importance)
+```
+
+The test accuracy is `r rf.test.acc`
+```{r}
+png('C:/lucy/Duke/Biostats-707/Final Project/imporatance_plot.png')
+ plot(MeanDecreaseGini~factor(names), importance_tab, las=2, 
+     xlab="", main="Mean Decrease in Gini Index",type = 'b')
+
+```
+
