@@ -1,0 +1,803 @@
+---
+title: "707_Regression"
+author: "Jenny Zhuo"
+output: html_notebook
+---
+
+```{r, message= FALSE}
+library(dplyr)
+library(glmnet)
+library(randomForest)
+library(knitr)
+library(reprtree)
+```
+
+# regression part
+```{r}
+train_data = read.csv("707_FP_Train.csv")
+test_data = read.csv("707_FP_Test.csv")
+train_data$Treatment = factor(train_data$Treatment,
+                              levels = c("1",
+                                         "2",
+                                         "3"))
+train_data$Gender = factor(train_data$Gender,
+                           levels = c("1","2"))
+train_data$Race = factor(train_data$Race,
+                         levels = c("0","1",
+                                    "2",
+                                    "3",
+                                    "4",
+                                    "5"))
+train_data$Marital_Status = factor(
+  train_data$Marital_Status,
+  levels = c("1","2","3","4","5","6")
+)
+train_data$Living_Situation = factor(
+  train_data$Living_Situation,
+  levels = c("1","2","3","4","5")
+)
+train_data$Adult_Num = factor(
+  train_data$Adult_Num,
+  levels = c("1",
+             "2",
+             "3")
+)
+train_data$Child_Num = factor(
+  train_data$Child_Num,
+  levels = c("1",
+             "2",
+             "3")
+)
+train_data$Education_Level = factor(
+  train_data$Education_Level,
+  levels = c("1","2","3",
+             "4","5","6")
+)
+train_data$Student_Status = factor(
+  train_data$Student_Status,
+  levels = c("1","2","3")
+)
+train_data$Income = factor(
+  train_data$Income,
+  levels = c("1","2","3")
+)
+train_data$Employ_Status = factor(
+  train_data$Employ_Status,
+  levels = c("1","2","3","4",
+             "5","6","7","8")
+)
+train_data$Menthol = factor(
+  train_data$Menthol,
+  levels = c("0","1")
+)
+train_data = train_data %>% 
+  select(-c(X, Smoke_Dependence_new))
+
+test_data$Treatment = factor(test_data$Treatment,
+                              levels = c("1",
+                                         "2",
+                                         "3"))
+test_data$Gender = factor(test_data$Gender,
+                           levels = c("1","2"))
+test_data$Race = factor(test_data$Race,
+                         levels = c("0","1",
+                                    "2",
+                                    "3",
+                                    "4",
+                                    "5"))
+test_data$Marital_Status = factor(
+  test_data$Marital_Status,
+  levels = c("1","2","3","4","5","6")
+)
+test_data$Living_Situation = factor(
+  test_data$Living_Situation,
+  levels = c("1","2","3","4","5")
+)
+test_data$Adult_Num = factor(
+  test_data$Adult_Num,
+  levels = c("1",
+             "2",
+             "3")
+)
+test_data$Child_Num = factor(
+  test_data$Child_Num,
+  levels = c("1",
+             "2",
+             "3")
+)
+test_data$Education_Level = factor(
+  test_data$Education_Level,
+  levels = c("1","2","3",
+             "4","5","6")
+)
+test_data$Student_Status = factor(
+  test_data$Student_Status,
+  levels = c("1","2","3")
+)
+test_data$Income = factor(
+  test_data$Income,
+  levels = c("1","2","3")
+)
+test_data$Employ_Status = factor(
+  test_data$Employ_Status,
+  levels = c("1","2","3","4",
+             "5","6","7","8")
+)
+test_data$Menthol = factor(
+  test_data$Menthol,
+  levels = c("0","1")
+)
+test_data = test_data %>% 
+  select(-c(X, Smoke_Dependence_new))
+
+```
+
+# basic linear regression
+```{r}
+# linear regression
+# testing the assumptions
+qqnorm(train_data$Smoke_Dependence_Dif)
+qqline(train_data$Smoke_Dependence_Dif)
+
+# fold 1 as test
+valid_fold1 = train_data %>% 
+  filter(Fold == "Fold1") %>% select(-Fold)
+train_fold1 = train_data %>% 
+  filter(Fold != "Fold1") %>% select(-Fold)
+
+# building model based on fold 1
+lm_fit_fold1 = lm(data = train_fold1,
+                  Smoke_Dependence_Dif~.)
+summary(lm_fit_fold1)
+
+# computing the MSE and R-square based on fold 1 as test data
+lm_fold1_pre = predict(lm_fit_fold1,
+                       valid_fold1[2:ncol(valid_fold1)])
+residual_sq_fold1 = (lm_fold1_pre - valid_fold1$Smoke_Dependence_Dif)^2
+lm_SSE_fold1 = sum(residual_sq_fold1)
+lm_MSE_fold1 = lm_SSE_fold1/nrow(valid_fold1)
+lm_SST_fold1 = sum((
+  valid_fold1$Smoke_Dependence_Dif - mean(valid_fold1$Smoke_Dependence_Dif)
+)^2)
+lm_R_fold1 = (lm_SST_fold1 - lm_SSE_fold1)/lm_SST_fold1
+
+
+# fold 2 as test
+valid_fold2 = train_data %>% 
+  filter(Fold == "Fold2") %>% select(-Fold)
+train_fold2 = train_data %>% 
+  filter(Fold != "Fold2") %>% select(-Fold)
+
+# building model based on fold 2
+lm_fit_fold2 = lm(data = train_fold2,
+                  Smoke_Dependence_Dif~.)
+summary(lm_fit_fold2)
+
+# computing the MSE R-square based on fold 2 as test data
+lm_fold2_pre = predict(lm_fit_fold2,
+                       valid_fold2[2:ncol(valid_fold2)])
+residual_sq_fold2 = (lm_fold2_pre - valid_fold2$Smoke_Dependence_Dif)^2
+lm_SSE_fold2 = sum(residual_sq_fold2)
+lm_MSE_fold2 = lm_SSE_fold2/nrow(valid_fold2)
+lm_SST_fold2 = sum((
+  valid_fold2$Smoke_Dependence_Dif - mean(valid_fold2$Smoke_Dependence_Dif)
+)^2)
+lm_R_fold2 = (lm_SST_fold2 - lm_SSE_fold2)/lm_SST_fold2
+
+
+
+# fold 3 as test
+valid_fold3 = train_data %>% 
+  filter(Fold == "Fold3") %>% select(-Fold)
+train_fold3 = train_data %>% 
+  filter(Fold != "Fold3") %>% select(-Fold)
+
+# building model based on fold 3
+lm_fit_fold3 = lm(data = train_fold3,
+                  Smoke_Dependence_Dif~.)
+summary(lm_fit_fold3)
+
+# computing the MSE R-square based on fold 3 as test data
+lm_fold3_pre = predict(lm_fit_fold3,
+                       valid_fold3[2:ncol(valid_fold3)])
+residual_sq_fold3 = (lm_fold3_pre - valid_fold3$Smoke_Dependence_Dif)^2
+lm_SSE_fold3 = sum(residual_sq_fold3)
+lm_MSE_fold3 = lm_SSE_fold3/nrow(valid_fold3)
+lm_SST_fold3 = sum((
+  valid_fold3$Smoke_Dependence_Dif - mean(valid_fold3$Smoke_Dependence_Dif)
+)^2)
+lm_R_fold3 = (lm_SST_fold3 - lm_SSE_fold3)/lm_SST_fold3
+
+
+# fold 4 as test
+valid_fold4 = train_data %>% 
+  filter(Fold == "Fold4") %>% select(-Fold)
+train_fold4 = train_data %>% 
+  filter(Fold != "Fold4") %>% select(-Fold)
+
+# building model based on fold 4
+lm_fit_fold4 = lm(data = train_fold4,
+                  Smoke_Dependence_Dif~.)
+summary(lm_fit_fold4)
+
+# computing the MSE R-square based on fold 4 as test data
+lm_fold4_pre = predict(lm_fit_fold4,
+                       valid_fold4[2:ncol(valid_fold4)])
+residual_sq_fold4 = (lm_fold4_pre - valid_fold4$Smoke_Dependence_Dif)^2
+lm_SSE_fold4 = sum(residual_sq_fold4)
+lm_MSE_fold4 = lm_SSE_fold4/nrow(valid_fold4)
+lm_SST_fold4 = sum((
+  valid_fold4$Smoke_Dependence_Dif - mean(valid_fold4$Smoke_Dependence_Dif)
+)^2)
+lm_R_fold4 = (lm_SST_fold4 - lm_SSE_fold4)/lm_SST_fold4
+
+
+# fold 5 as test
+valid_fold5 = train_data %>% 
+  filter(Fold == "Fold5") %>% select(-Fold)
+train_fold5 = train_data %>% 
+  filter(Fold != "Fold5") %>% select(-Fold)
+
+# building model based on fold 5
+lm_fit_fold5 = lm(data = train_fold5,
+                  Smoke_Dependence_Dif~.)
+summary(lm_fit_fold5)
+
+# computing the MSE R-square based on fold 5 as test data
+lm_fold5_pre = predict(lm_fit_fold5,
+                       valid_fold5[2:ncol(valid_fold5)])
+residual_sq_fold5 = (lm_fold5_pre - valid_fold5$Smoke_Dependence_Dif)^2
+lm_SSE_fold5 = sum(residual_sq_fold5)
+lm_MSE_fold5 = lm_SSE_fold5/nrow(valid_fold5)
+lm_SST_fold5 = sum((
+  valid_fold5$Smoke_Dependence_Dif - mean(valid_fold5$Smoke_Dependence_Dif)
+)^2)
+lm_R_fold5 = (lm_SST_fold5 - lm_SSE_fold5)/lm_SST_fold5
+
+# average MSE and R square for the basic linear regression
+lm_MSE_avg = (lm_MSE_fold1+lm_MSE_fold2+lm_MSE_fold3+
+                lm_MSE_fold4+lm_MSE_fold5)/5
+lm_R_avg = (lm_R_fold1+lm_R_fold2+lm_R_fold3+
+              lm_R_fold4+lm_R_fold5)/5
+```
+
+# LASSO regression
+```{r}
+# fold 1 as test
+valid_fold1 = train_data %>% 
+  filter(Fold == "Fold1") %>% select(-Fold)
+train_fold1 = train_data %>% 
+  filter(Fold != "Fold1") %>% select(-Fold)
+
+# identify the best lambda
+lambda_seq = 10 ^ seq(2, -2, by = -.1)
+x_vars_fold1 = model.matrix(Smoke_Dependence_Dif~.,
+                            train_fold1)[,-1]
+x_valid_fold1 = model.matrix(Smoke_Dependence_Dif~.,
+                             valid_fold1)[,-1]
+y_var_fold1 = train_fold1$Smoke_Dependence_Dif
+cv_output_fold1 = cv.glmnet(x_vars_fold1,
+                            y_var_fold1,
+                            alpha = 1,
+                            lambda = lambda_seq,
+                            type.measure = "mse",
+                            nfolds = 10)
+best_lam_fold1 = cv_output_fold1$lambda.min
+lasso_fold1 = glmnet(x_vars_fold1,
+                     y_var_fold1,
+                     alpha = 1,
+                     family = "gaussian",
+                     lambda = best_lam_fold1)
+coef(lasso_fold1)
+lasso_fold1_pre = predict(lasso_fold1,
+                          s = best_lam_fold1,
+                          newx = x_valid_fold1)
+
+# computing the MSE and R-square based on fold 1 as test data
+residual_lasso_fold1 = (lasso_fold1_pre - valid_fold1$Smoke_Dependence_Dif)^2
+lasso_SSE_fold1 = sum(residual_lasso_fold1)
+lasso_MSE_fold1 = lasso_SSE_fold1/nrow(valid_fold1)
+lasso_SST_fold1 = sum((
+  valid_fold1$Smoke_Dependence_Dif - mean(valid_fold1$Smoke_Dependence_Dif)
+)^2)
+lasso_R_fold1 = (lasso_SST_fold1 - lasso_SSE_fold1)/lasso_SST_fold1
+
+# fold 2 as test
+valid_fold2 = train_data %>% 
+  filter(Fold == "Fold2") %>% select(-Fold)
+train_fold2 = train_data %>% 
+  filter(Fold != "Fold2") %>% select(-Fold)
+
+# identify the best lambda
+lambda_seq = 10 ^ seq(2, -2, by = -.1)
+x_vars_fold2 = model.matrix(Smoke_Dependence_Dif~.,
+                            train_fold2)[,-1]
+x_valid_fold2 = model.matrix(Smoke_Dependence_Dif~.,
+                             valid_fold2)[,-1]
+y_var_fold2 = train_fold2$Smoke_Dependence_Dif
+cv_output_fold2 = cv.glmnet(x_vars_fold2,
+                            y_var_fold2,
+                            alpha = 1,
+                            type.measure = "mse",
+                            lambda = lambda_seq,
+                            nfolds = 10)
+best_lam_fold2 = cv_output_fold2$lambda.min
+lasso_fold2 = glmnet(x_vars_fold2,
+                     y_var_fold2,
+                     family = "gaussian",
+                     alpha = 1,
+                     lambda = best_lam_fold2)
+coef(lasso_fold2)
+lasso_fold2_pre = predict(lasso_fold2,
+                          s = best_lam_fold2,
+                          newx = x_valid_fold2)
+
+# computing the MSE and R-square based on fold 2 as test data
+residual_lasso_fold2 = (lasso_fold2_pre - valid_fold2$Smoke_Dependence_Dif)^2
+lasso_SSE_fold2 = sum(residual_lasso_fold2)
+lasso_MSE_fold2 = lasso_SSE_fold2/nrow(valid_fold2)
+lasso_SST_fold2 = sum((
+  valid_fold2$Smoke_Dependence_Dif - mean(valid_fold2$Smoke_Dependence_Dif)
+)^2)
+lasso_R_fold2 = (lasso_SST_fold2 - lasso_SSE_fold2)/lasso_SST_fold2
+
+
+# fold 3 as test
+valid_fold3 = train_data %>% 
+  filter(Fold == "Fold3") %>% select(-Fold)
+train_fold3 = train_data %>% 
+  filter(Fold != "Fold3") %>% select(-Fold)
+
+# identify the best lambda
+lambda_seq = 10 ^ seq(2, -2, by = -.1)
+x_vars_fold3 = model.matrix(Smoke_Dependence_Dif~.,
+                            train_fold3)[,-1]
+x_valid_fold3 = model.matrix(Smoke_Dependence_Dif~.,
+                             valid_fold3)[,-1]
+y_var_fold3 = train_fold3$Smoke_Dependence_Dif
+cv_output_fold3 = cv.glmnet(x_vars_fold3,
+                            y_var_fold3,
+                            alpha = 1,
+                            type.measure = "mse",
+                            lambda = lambda_seq,
+                            nfolds = 10)
+best_lam_fold3 = cv_output_fold3$lambda.min
+lasso_fold3 = glmnet(x_vars_fold3,
+                     y_var_fold3,
+                     alpha = 1,
+                     family = "gaussian",
+                     lambda = best_lam_fold3)
+coef(lasso_fold3)
+lasso_fold3_pre = predict(lasso_fold3,
+                          s = best_lam_fold3,
+                          newx = x_valid_fold3)
+
+# computing the MSE and R-square based on fold 3 as test data
+residual_lasso_fold3 = (lasso_fold3_pre - valid_fold3$Smoke_Dependence_Dif)^2
+lasso_SSE_fold3 = sum(residual_lasso_fold3)
+lasso_MSE_fold3 = lasso_SSE_fold3/nrow(valid_fold3)
+lasso_SST_fold3 = sum((
+  valid_fold3$Smoke_Dependence_Dif - mean(valid_fold3$Smoke_Dependence_Dif)
+)^2)
+lasso_R_fold3 = (lasso_SST_fold3 - lasso_SSE_fold3)/lasso_SST_fold3
+
+
+# fold 4 as test
+valid_fold4 = train_data %>% 
+  filter(Fold == "Fold4") %>% select(-Fold)
+train_fold4 = train_data %>% 
+  filter(Fold != "Fold4") %>% select(-Fold)
+
+# identify the best lambda
+lambda_seq = 10 ^ seq(2, -2, by = -.1)
+x_vars_fold4 = model.matrix(Smoke_Dependence_Dif~.,
+                            train_fold4)[,-1]
+x_valid_fold4 = model.matrix(Smoke_Dependence_Dif~.,
+                             valid_fold4)[,-1]
+y_var_fold4 = train_fold4$Smoke_Dependence_Dif
+cv_output_fold4 = cv.glmnet(x_vars_fold4,
+                            y_var_fold4,
+                            alpha = 1,
+                            lambda = lambda_seq,
+                            type.measure = "mse",
+                            nfolds = 10)
+best_lam_fold4 = cv_output_fold4$lambda.min
+lasso_fold4 = glmnet(x_vars_fold4,
+                     y_var_fold4,
+                     family = "gaussian",
+                     alpha = 1,
+                     lambda = best_lam_fold4)
+coef(lasso_fold4)
+lasso_fold4_pre = predict(lasso_fold4,
+                          s = best_lam_fold4,
+                          newx = x_valid_fold4)
+
+# computing the MSE and R-square based on fold 4 as test data
+residual_lasso_fold4 = (lasso_fold4_pre - valid_fold4$Smoke_Dependence_Dif)^2
+lasso_SSE_fold4 = sum(residual_lasso_fold4)
+lasso_MSE_fold4 = lasso_SSE_fold4/nrow(valid_fold4)
+lasso_SST_fold4 = sum((
+  valid_fold4$Smoke_Dependence_Dif - mean(valid_fold4$Smoke_Dependence_Dif)
+)^2)
+lasso_R_fold4 = (lasso_SST_fold4 - lasso_SSE_fold4)/lasso_SST_fold4
+
+
+# fold 5 as test
+valid_fold5 = train_data %>% 
+  filter(Fold == "Fold5") %>% select(-Fold)
+train_fold5 = train_data %>% 
+  filter(Fold != "Fold5") %>% select(-Fold)
+
+# identify the best lambda
+lambda_seq = 10 ^ seq(2, -2, by = -.1)
+x_vars_fold5 = model.matrix(Smoke_Dependence_Dif~.,
+                            train_fold5)[,-1]
+x_valid_fold5 = model.matrix(Smoke_Dependence_Dif~.,
+                             valid_fold5)[,-1]
+y_var_fold5 = train_fold5$Smoke_Dependence_Dif
+cv_output_fold5 = cv.glmnet(x_vars_fold5,
+                            y_var_fold5,
+                            alpha = 1,
+                            type.measure = "mse",
+                            lambda = lambda_seq,
+                            nfolds = 10)
+best_lam_fold5 = cv_output_fold5$lambda.min
+lasso_fold5 = glmnet(x_vars_fold5,
+                     y_var_fold5,
+                     family = "gaussian",
+                     alpha = 1,
+                     lambda = best_lam_fold5)
+coef(lasso_fold5)
+lasso_fold5_pre = predict(lasso_fold5,
+                          s = best_lam_fold5,
+                          newx = x_valid_fold5)
+
+# computing the MSE and R-square based on fold 5 as test data
+residual_lasso_fold5 = (lasso_fold5_pre - valid_fold5$Smoke_Dependence_Dif)^2
+lasso_SSE_fold5 = sum(residual_lasso_fold5)
+lasso_MSE_fold5 = lasso_SSE_fold5/nrow(valid_fold5)
+lasso_SST_fold5 = sum((
+  valid_fold5$Smoke_Dependence_Dif - mean(valid_fold5$Smoke_Dependence_Dif)
+)^2)
+lasso_R_fold5 = (lasso_SST_fold5 - lasso_SSE_fold5)/lasso_SST_fold5
+
+# average MSE and R square for the lasso regression
+lasso_MSE_avg = (lasso_MSE_fold1+lasso_MSE_fold2+lasso_MSE_fold3+
+                lasso_MSE_fold4+lasso_MSE_fold5)/5
+lasso_R_avg = (lasso_R_fold1+lasso_R_fold2+lasso_R_fold3+
+              lasso_R_fold4+lasso_R_fold5)/5
+
+```
+
+# Random Forest
+
+```{r,fig.width=20,fig.height=20}
+# fold 1 as test
+valid_fold1 = train_data %>% 
+  filter(Fold == "Fold1") %>% select(-Fold)
+train_fold1 = train_data %>% 
+  filter(Fold != "Fold1") %>% select(-Fold)
+mtry_fold1 = tuneRF(train_fold1[,-1],train_fold1$Smoke_Dependence_Dif,
+       ntreeTry = 500, stepFactor = 1.5,
+       improve = 0.01, trace = TRUE, plot = TRUE)
+best.m_fold1 = mtry_fold1[mtry_fold1[,2] == min(mtry_fold1[,2]),1]
+rf_fit_fold1 = randomForest(Smoke_Dependence_Dif~.,
+                            data = train_fold1,
+                            ntree = 1000,
+                            mtry = best.m_fold1,
+                            importance = TRUE)
+#reprtree:::plot.getTree(rf_fit_fold1)
+importance(rf_fit_fold1)
+varImpPlot(rf_fit_fold1)
+rf_fold1_pre = predict(rf_fit_fold1,
+                       valid_fold1[2:ncol(valid_fold1)])
+# computing the MSE and R-square based on fold 1 as test data
+rf_MSE_fold1 = mean(rf_fit_fold1$mse)
+rf_R_fold1 = mean(rf_fit_fold1$rsq)
+
+
+# fold 2 as test
+valid_fold2 = train_data %>% 
+  filter(Fold == "Fold2") %>% select(-Fold)
+train_fold2 = train_data %>% 
+  filter(Fold != "Fold2") %>% select(-Fold)
+mtry_fold2 = tuneRF(train_fold2[,-1],
+                    train_fold2$Smoke_Dependence_Dif,
+                    ntreeTry = 500, stepFactor = 1.5,
+                    improve = 0.01, trace = TRUE, plot = TRUE)
+best.m_fold2 = mtry_fold2[mtry_fold2[,2] == min(mtry_fold2[,2]),1]
+rf_fit_fold2 = randomForest(Smoke_Dependence_Dif~.,
+                            data = train_fold2,
+                            ntree = 1000,
+                            mtry = best.m_fold2,
+                            importance = TRUE)
+rf_fit_fold2
+importance(rf_fit_fold2)
+varImpPlot(rf_fit_fold2)
+rf_fold2_pre = predict(rf_fit_fold2,
+                       valid_fold2[2:ncol(valid_fold2)])
+# computing the MSE based on fold 2 as test data
+rf_MSE_fold2 = mean(rf_fit_fold2$mse)
+rf_R_fold2 = mean(rf_fit_fold2$rsq)
+
+
+# fold 3 as test
+valid_fold3 = train_data %>% 
+  filter(Fold == "Fold3") %>% select(-Fold)
+train_fold3 = train_data %>% 
+  filter(Fold != "Fold3") %>% select(-Fold)
+mtry_fold3 = tuneRF(train_fold3[,-1],train_fold3$Smoke_Dependence_Dif,
+       ntreeTry = 500, stepFactor = 1.5,
+       improve = 0.01, trace = TRUE, plot = TRUE)
+best.m_fold3 = mtry_fold3[mtry_fold3[,2] == min(mtry_fold3[,2]),1]
+rf_fit_fold3 = randomForest(Smoke_Dependence_Dif~.,
+                            data = train_fold3,
+                            ntree = 1000,
+                            mtry = best.m_fold3,
+                            importance = TRUE)
+rf_fit_fold3
+importance(rf_fit_fold3)
+varImpPlot(rf_fit_fold3)
+rf_fold3_pre = predict(rf_fit_fold3,
+                       valid_fold3[2:ncol(valid_fold3)])
+# computing the MSE based on fold 3 as test data
+rf_MSE_fold3 = mean(rf_fit_fold3$mse)
+rf_R_fold3 = mean(rf_fit_fold3$rsq)
+
+
+# fold 4 as test
+valid_fold4 = train_data %>% 
+  filter(Fold == "Fold4") %>% select(-Fold)
+train_fold4 = train_data %>% 
+  filter(Fold != "Fold4") %>% select(-Fold)
+mtry_fold4 = tuneRF(train_fold4[,-1],
+                    train_fold4$Smoke_Dependence_Dif,
+                    ntreeTry = 500, stepFactor = 1.5,
+                    improve = 0.01, trace = TRUE, plot = TRUE)
+best.m_fold4 = mtry_fold4[mtry_fold4[,2] == min(mtry_fold4[,2]),1]
+rf_fit_fold4 = randomForest(Smoke_Dependence_Dif~.,
+                            data = train_fold4,
+                            ntree = 1000,
+                            mtry = best.m_fold4,
+                            importance = TRUE)
+rf_fit_fold4
+importance(rf_fit_fold4)
+varImpPlot(rf_fit_fold4)
+rf_fold4_pre = predict(rf_fit_fold4,
+                       valid_fold4[2:ncol(valid_fold4)])
+# computing the MSE based on fold 4 as test data
+rf_MSE_fold4 = mean(rf_fit_fold4$mse)
+rf_R_fold4 = mean(rf_fit_fold4$rsq)
+
+
+# fold 5 as test
+valid_fold5 = train_data %>% 
+  filter(Fold == "Fold5") %>% select(-Fold)
+train_fold5 = train_data %>% 
+  filter(Fold != "Fold5") %>% select(-Fold)
+mtry_fold5 = tuneRF(train_fold5[,-1],
+                    train_fold5$Smoke_Dependence_Dif,
+                    ntreeTry = 500, stepFactor = 1.5,
+                    improve = 0.01, trace = TRUE, plot = TRUE)
+best.m_fold5 = mtry_fold5[mtry_fold5[,2] == min(mtry_fold5[,2]),1]
+rf_fit_fold5 = randomForest(Smoke_Dependence_Dif~.,
+                            data = train_fold5,
+                            ntree = 1000,
+                            mtry = best.m_fold5,
+                            importance = TRUE)
+rf_fit_fold5
+importance(rf_fit_fold5)
+varImpPlot(rf_fit_fold5)
+rf_fold5_pre = predict(rf_fit_fold5,
+                       valid_fold5[2:ncol(valid_fold5)])
+# computing the MSE based on fold 5 as test data
+rf_MSE_fold5 = mean(rf_fit_fold5$mse)
+rf_R_fold5 = mean(rf_fit_fold5$rsq)
+
+# average MSE for random forest
+rf_MSE_avg = (rf_MSE_fold1+rf_MSE_fold2+rf_MSE_fold3+
+                rf_MSE_fold4+rf_MSE_fold5)/5
+rf_R_avg = (rf_R_fold1+rf_R_fold2+rf_R_fold3+
+                rf_R_fold4+rf_R_fold5)/5
+```
+
+# polynomial regression
+```{r}
+# fold 1 as test
+valid_fold1 = train_data %>% 
+  filter(Fold == "Fold1") %>% select(-Fold)
+train_fold1 = train_data %>% 
+  filter(Fold != "Fold1") %>% select(-Fold)
+
+valid_poly_fold1 = valid_fold1 %>% 
+  mutate(age_square = Age^2) %>% 
+  mutate(cigar_sq = Cigarette_Evaluation^2) 
+train_poly_fold1 = train_fold1 %>% 
+  mutate(age_square = Age^2)%>% 
+  mutate(cigar_sq = Cigarette_Evaluation^2)
+poly_fit_fold1 = lm(Smoke_Dependence_Dif~.,
+                    data = train_poly_fold1)
+summary(poly_fit_fold1)
+
+# computing the MSE based on fold 1 as test data
+poly_fold1_pre = predict(poly_fit_fold1,
+                       valid_poly_fold1[2:ncol(valid_poly_fold1)])
+residual_poly_fold1 = (poly_fold1_pre- valid_poly_fold1$Smoke_Dependence_Dif)^2
+poly_SSE_fold1 = sum(residual_poly_fold1)
+poly_MSE_fold1 = poly_SSE_fold1/nrow(valid_poly_fold1)
+poly_SST_fold1 = sum((
+  valid_fold1$Smoke_Dependence_Dif - mean(valid_fold1$Smoke_Dependence_Dif)
+)^2)
+poly_R_fold1 = (poly_SST_fold1 - poly_SSE_fold1)/poly_SST_fold1
+
+# fold 2 as test
+valid_fold2 = train_data %>% 
+  filter(Fold == "Fold2") %>% select(-Fold)
+train_fold2 = train_data %>% 
+  filter(Fold != "Fold2") %>% select(-Fold)
+
+valid_poly_fold2 = valid_fold2 %>% 
+  mutate(age_square = Age^2) %>% 
+  mutate(cigar_sq = Cigarette_Evaluation^2) 
+train_poly_fold2 = train_fold2 %>% 
+  mutate(age_square = Age^2)%>% 
+  mutate(cigar_sq = Cigarette_Evaluation^2)
+poly_fit_fold2 = lm(Smoke_Dependence_Dif~.,
+                    data = train_poly_fold2)
+summary(poly_fit_fold2)
+
+# computing the MSE based on fold 2 as test data
+poly_fold2_pre = predict(poly_fit_fold2,
+                       valid_poly_fold2[2:ncol(valid_poly_fold2)])
+residual_poly_fold2 = (poly_fold2_pre- valid_poly_fold2$Smoke_Dependence_Dif)^2
+poly_SSE_fold2 = sum(residual_poly_fold2)
+poly_MSE_fold2 = poly_SSE_fold2/nrow(valid_poly_fold2)
+poly_SST_fold2 = sum((
+  valid_fold2$Smoke_Dependence_Dif - mean(valid_fold2$Smoke_Dependence_Dif)
+)^2)
+poly_R_fold2 = (poly_SST_fold2 - poly_SSE_fold2)/poly_SST_fold2
+
+# fold 3 as test
+valid_fold3 = train_data %>% 
+  filter(Fold == "Fold3") %>% select(-Fold)
+train_fold3 = train_data %>% 
+  filter(Fold != "Fold3") %>% select(-Fold)
+
+valid_poly_fold3 = valid_fold3 %>% 
+  mutate(age_square = Age^2) %>% 
+  mutate(cigar_sq = Cigarette_Evaluation^2) 
+train_poly_fold3 = train_fold3 %>% 
+  mutate(age_square = Age^2)%>% 
+  mutate(cigar_sq = Cigarette_Evaluation^2)
+poly_fit_fold3 = lm(Smoke_Dependence_Dif~.,
+                    data = train_poly_fold3)
+summary(poly_fit_fold3)
+
+# computing the MSE based on fold 3 as test data
+poly_fold3_pre = predict(poly_fit_fold3,
+                       valid_poly_fold3[2:ncol(valid_poly_fold3)])
+residual_poly_fold3 = (poly_fold3_pre- valid_poly_fold3$Smoke_Dependence_Dif)^2
+poly_SSE_fold3 = sum(residual_poly_fold3)
+poly_MSE_fold3 = poly_SSE_fold3/nrow(valid_poly_fold3)
+poly_SST_fold3 = sum((
+  valid_fold3$Smoke_Dependence_Dif - mean(valid_fold3$Smoke_Dependence_Dif)
+)^2)
+poly_R_fold3 = (poly_SST_fold3 - poly_SSE_fold3)/poly_SST_fold3
+
+# fold 4 as test
+valid_fold4 = train_data %>% 
+  filter(Fold == "Fold4") %>% select(-Fold)
+train_fold4 = train_data %>% 
+  filter(Fold != "Fold4") %>% select(-Fold)
+
+valid_poly_fold4 = valid_fold4 %>% 
+  mutate(age_square = Age^2) %>% 
+  mutate(cigar_sq = Cigarette_Evaluation^2) 
+train_poly_fold4 = train_fold4 %>% 
+  mutate(age_square = Age^2)%>% 
+  mutate(cigar_sq = Cigarette_Evaluation^2)
+poly_fit_fold4 = lm(Smoke_Dependence_Dif~.,
+                    data = train_poly_fold4)
+summary(poly_fit_fold4)
+
+# computing the MSE based on fold 4 as test data
+poly_fold4_pre = predict(poly_fit_fold4,
+                       valid_poly_fold4[2:ncol(valid_poly_fold4)])
+residual_poly_fold4 = (poly_fold4_pre- valid_poly_fold4$Smoke_Dependence_Dif)^2
+poly_SSE_fold4 = sum(residual_poly_fold4)
+poly_MSE_fold4 = poly_SSE_fold4/nrow(valid_poly_fold4)
+poly_SST_fold4 = sum((
+  valid_fold4$Smoke_Dependence_Dif - mean(valid_fold4$Smoke_Dependence_Dif)
+)^2)
+poly_R_fold4 = (poly_SST_fold4 - poly_SSE_fold4)/poly_SST_fold4
+
+# fold 5 as test
+valid_fold5 = train_data %>% 
+  filter(Fold == "Fold5") %>% select(-Fold)
+train_fold5 = train_data %>% 
+  filter(Fold != "Fold5") %>% select(-Fold)
+
+valid_poly_fold5 = valid_fold5 %>% 
+  mutate(age_square = Age^2) %>% 
+  mutate(cigar_sq = Cigarette_Evaluation^2) 
+train_poly_fold5 = train_fold5 %>% 
+  mutate(age_square = Age^2)%>% 
+  mutate(cigar_sq = Cigarette_Evaluation^2)
+poly_fit_fold5 = lm(Smoke_Dependence_Dif~.,
+                    data = train_poly_fold5)
+summary(poly_fit_fold5)
+
+# computing the MSE based on fold 5 as test data
+poly_fold5_pre = predict(poly_fit_fold5,
+                       valid_poly_fold5[2:ncol(valid_poly_fold5)])
+residual_poly_fold5 = (poly_fold5_pre- valid_poly_fold5$Smoke_Dependence_Dif)^2
+poly_SSE_fold5 = sum(residual_poly_fold5)
+poly_MSE_fold5 = poly_SSE_fold5/nrow(valid_poly_fold5)
+poly_SST_fold5 = sum((
+  valid_fold5$Smoke_Dependence_Dif - mean(valid_fold5$Smoke_Dependence_Dif)
+)^2)
+poly_R_fold5 = (poly_SST_fold5 - poly_SSE_fold5)/poly_SST_fold5
+
+
+# average MSE for the polynomial linear regression
+poly_MSE_avg = (poly_MSE_fold1+poly_MSE_fold2+poly_MSE_fold3+
+                poly_MSE_fold4+poly_MSE_fold5)/5
+poly_R_avg = (poly_R_fold1+poly_R_fold2+poly_R_fold3+
+                poly_R_fold4+poly_R_fold5)/5
+
+```
+
+# create the table including MSE
+```{r}
+mse_df = data.frame(matrix(NA, nrow = 1,
+                ncol = 4))
+mse_list = c(lm_MSE_avg,
+             lasso_MSE_avg,
+             rf_MSE_avg,
+             poly_MSE_avg)
+r_list = c(lm_R_avg,
+             lasso_R_avg,
+             rf_R_avg,
+             poly_R_avg)
+rownames(mse_df) = c("MSE")
+colnames(mse_df) = c("Linear", 
+                     "Lasso",
+                     "RandomForest",
+                     "Polynomial")
+mse_df$Linear = c(round(lm_MSE_avg,2))
+mse_df$Lasso = c(round(lasso_MSE_avg,2))
+mse_df$RandomForest = c(round(rf_MSE_avg,2))
+mse_df$Polynomial = c(round(poly_MSE_avg,2))
+kable(mse_df)
+```
+
+# the LASSO works the best
+# apply the LASSO on the test data
+```{r}
+lambda_seq = 10 ^ seq(2, -2, by = -.1)
+x_vars_test = model.matrix(Smoke_Dependence_Dif~.,
+                            test_data)[,-1]
+y_var_test = test_data$Smoke_Dependence_Dif
+cv_output_test = cv.glmnet(x_vars_test,
+                            y_var_test,
+                            alpha = 1,
+                            lambda = lambda_seq,
+                            type.measure = "mse",
+                            nfolds = 10)
+best_lam_test = cv_output_test$lambda.min
+lasso_test = glmnet(x_vars_test,
+                     y_var_test,
+                     alpha = 1,
+                     family = "gaussian",
+                     lambda = best_lam_test)
+coef(lasso_test)
+lasso_test_pre = predict.glmnet(lasso_test, 
+                               x_vars_test)
+
+residual_lasso_test = (lasso_test_pre - test_data$Smoke_Dependence_Dif)^2
+lasso_SSE_test = sum(residual_lasso_test)
+lasso_MSE_test = lasso_SSE_test/nrow(test_data)
+lasso_R_test = lasso_test$dev.ratio
+coef(lasso_test)
+```
+
