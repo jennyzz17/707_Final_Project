@@ -76,6 +76,9 @@ continuous variable and perform regression models.
 
 ### Job Division
 **Data Preprocessing and Exploratory Data Analysis**: Ruqian Cheng, Weiliang Tian
+
 **Unsupervised Learning**: Wenxin Zhong
+
 **Classification**: Yili Lin
+
 **Regression**: Wenyue Zhuo
