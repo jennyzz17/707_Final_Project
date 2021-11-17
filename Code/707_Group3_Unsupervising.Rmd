@@ -1,0 +1,93 @@
+---
+title: "Group 3 EDA"
+author: "Group 3"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message= FALSE}
+library(dplyr)
+library(cluster)
+library(Rtsne)
+library(tidyverse)
+library(kableExtra)
+```
+
+# Unsupervised Learning
+```{r}
+#read-in data
+data <- read.csv("707_Project_EDA.csv")
+cols <- c("Treatment", "Gender", "Race", "Marital_Status","Living_Situation","Education_Level","Student_Status","Income","Employ_Status","Menthol")
+data[cols] <- lapply(data[cols], as.factor)
+kmeans_df <- data %>%
+              select(-c("Subject_ID", "Smoke_Dependence_Baseline","Smoke_Dependence_Week6","Smoke_Dependence_Dif"))
+
+# Gower Distance
+gower_df <- daisy(kmeans_df, metric = "gower")
+summary(gower_df)
+```
+
+```{r}
+#Silhouette Width
+silhouette <- c()
+silhouette = c(silhouette, NA)
+for(i in 2:10){
+  pam_clusters = pam(as.matrix(gower_df),
+                 diss = TRUE,
+                 k = i)
+  silhouette = c(silhouette ,pam_clusters$silinfo$avg.width)
+}
+plot(1:10, silhouette,
+     xlab = "Clusters",
+     ylab = "Silhouette Width")
+lines(1:10, silhouette)
+```
+
+- 2 clusters seems optimal
+
+```{r}
+#Using PAM to find the desired clusters
+pam_german = pam(gower_df, diss = TRUE, k = 2)
+
+new_data <- data %>%
+            select(Smoke_Dependence_Dif, Age, Gender, Race, Income, Employ_Status, Nicotine_Dependence)
+
+new.data2 <- new_data[pam_german$medoids,]
+
+#Table of the observations that can respent each cluster
+kbl(new.data2,
+    caption = "**Examplars of Each Cluster**",
+    booktabs = T,
+    linesep = "") %>%
+  kable_styling(
+    latex_options = "striped",
+    stripe_index = c(1:6),
+    full_width = FALSE
+  )
+```
+
+```{r}
+pam_summary <- kmeans_df %>%
+  mutate(cluster = pam_german$clustering) %>%
+  group_by(cluster) %>%
+  do(cluster_summary = summary(.))
+pam_summary$cluster_summary[[1]]
+```
+
+```{r}
+#Some visualization
+tsne_object <- Rtsne(gower_df, is_distance = TRUE)
+tsne_df <- tsne_object$Y %>%
+  data.frame() %>%
+  setNames(c("X", "Y")) %>%
+  mutate(cluster = factor(pam_german$clustering))
+ggplot(aes(x = X, y = Y), data = tsne_df) +
+  geom_point(aes(color = cluster))
+```
+
